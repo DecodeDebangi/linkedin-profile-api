@@ -152,25 +152,78 @@ export function parseProfileHtml(
     }
   }
 
-  // 5. Extract Images from Preload Links & Image tags (Mobile & Desktop)
-  $('link[rel="preload"][as="image"]').each((_, el) => {
-    const srcSet = $(el).attr('imagesrcset') || $(el).attr('href') || '';
-    if (srcSet.includes('profile-displayphoto') && !profileImageUrls.avatar) {
-      const parts = srcSet.split(',').map((s) => s.trim().split(' ')[0]);
-      profileImageUrls.avatar = parts[parts.length - 1] || parts[0];
-    } else if (srcSet.includes('profile-displaybackgroundimage') && !profileImageUrls.banner) {
-      const parts = srcSet.split(',').map((s) => s.trim().split(' ')[0]);
-      profileImageUrls.banner = parts[parts.length - 1] || parts[0];
+  // 5. Image Extraction (Avatar & Banner)
+  
+  // A. Avatar Extraction: Must contain 'profile-displayphoto' and not be a header/nav icon
+  let avatarCandidate = '';
+
+  // Strategy 1: Iterate over <img> tags containing 'profile-displayphoto'
+  $('img[src*="profile-displayphoto"], img[data-delayed-url*="profile-displayphoto"]').each((_, el) => {
+    if (avatarCandidate) return; // Found
+
+    const $img = $(el);
+    // Skip nav bar / header / me-widget icons
+    if ($img.closest('header, nav, .global-nav, .me-widget').length > 0) return;
+
+    const url = $img.attr('data-delayed-url') || $img.attr('src') || '';
+    if (url && !url.includes('ghost') && !url.includes('profile-displaybackgroundimage')) {
+      avatarCandidate = url;
     }
   });
 
-  if (!profileImageUrls.avatar) {
-    const imgAvatar = $('img[data-delayed-url*="profile-displayphoto"], img[src*="profile-displayphoto"]').first().attr('data-delayed-url') || $('img[src*="profile-displayphoto"]').first().attr('src');
-    if (imgAvatar) profileImageUrls.avatar = imgAvatar;
+  // Strategy 2: Check OpenGraph og:image ONLY if it contains 'profile-displayphoto'
+  if (!avatarCandidate && openGraph['og:image'] && openGraph['og:image'].includes('profile-displayphoto')) {
+    avatarCandidate = openGraph['og:image'];
   }
-  if (!profileImageUrls.banner) {
-    const imgBanner = $('img[data-delayed-url*="profile-displaybackgroundimage"], img[src*="profile-displaybackgroundimage"]').first().attr('data-delayed-url') || $('img[src*="profile-displaybackgroundimage"]').first().attr('src');
-    if (imgBanner) profileImageUrls.banner = imgBanner;
+
+  // Strategy 3: Check <link rel="preload"> with 'profile-displayphoto' excluding scale_100_100 nav icon
+  if (!avatarCandidate) {
+    $('link[rel="preload"][as="image"]').each((_, el) => {
+      const srcSet = $(el).attr('imagesrcset') || $(el).attr('href') || '';
+      if (srcSet.includes('profile-displayphoto') && !srcSet.includes('scale_100_100')) {
+        const parts = srcSet.split(',').map((s) => s.trim().split(' ')[0]);
+        const largest = parts[parts.length - 1] || parts[0];
+        if (largest && !largest.includes('ghost')) {
+          avatarCandidate = largest;
+        }
+      }
+    });
+  }
+
+  if (avatarCandidate && !avatarCandidate.includes('ghost')) {
+    profileImageUrls.avatar = avatarCandidate;
+  }
+
+  // B. Banner Extraction: Must contain 'profile-displaybackgroundimage'
+  let bannerCandidate = '';
+
+  $('link[rel="preload"][as="image"]').each((_, el) => {
+    const srcSet = $(el).attr('imagesrcset') || $(el).attr('href') || '';
+    if (srcSet.includes('profile-displaybackgroundimage') && !bannerCandidate) {
+      const parts = srcSet.split(',').map((s) => s.trim().split(' ')[0]);
+      bannerCandidate = parts[parts.length - 1] || parts[0];
+    }
+  });
+
+  if (!bannerCandidate) {
+    const imgBanner = $(
+      'img[src*="profile-displaybackgroundimage"], img[data-delayed-url*="profile-displaybackgroundimage"], .cover-image img, img.cover-image'
+    )
+      .not('header img, .global-nav img, .nav__user-avatar, img[src*="profile-displayphoto"]')
+      .first();
+
+    bannerCandidate =
+      imgBanner.attr('data-delayed-url') ||
+      imgBanner.attr('src') ||
+      '';
+  }
+
+  if (!bannerCandidate && openGraph['og:image'] && openGraph['og:image'].includes('profile-displaybackgroundimage')) {
+    bannerCandidate = openGraph['og:image'];
+  }
+
+  if (bannerCandidate) {
+    profileImageUrls.banner = bannerCandidate;
   }
 
   if (profileImageUrls.avatar || profileImageUrls.banner) {
