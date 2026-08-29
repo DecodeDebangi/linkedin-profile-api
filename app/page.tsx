@@ -31,14 +31,19 @@ export default function HomePage() {
     setUrl(targetUrl);
 
     try {
+      const reqHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (options.cookiesOverride) {
+        reqHeaders['Authorization'] = `Bearer ${options.cookiesOverride}`;
+      }
+
       const res = await fetch('/api/scrape', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: reqHeaders,
         body: JSON.stringify({
           url: targetUrl,
-          cookiesOverride: options.cookiesOverride,
         }),
       });
 
@@ -154,7 +159,7 @@ export default function HomePage() {
               </div>
               <h4 className="font-bold text-sm text-slate-200">Session Cookie Authentication</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Securely injects authenticated cookies (<code className="text-amber-300">SCRAPER_COOKIES</code>) supplied via environment variables or form options to bypass public auth-walls on protected social platforms.
+                Securely injects authenticated cookies (<code className="text-amber-300">LINKEDIN_COOKIE_LI_AT</code> & <code className="text-amber-300">LINKEDIN_COOKIE_JSESSIONID</code>) supplied via environment variables or form options to bypass public auth-walls on protected social platforms.
               </p>
             </div>
 

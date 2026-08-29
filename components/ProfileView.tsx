@@ -63,7 +63,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ data, metadata }) => {
             </div>
             <p className="leading-relaxed text-slate-300">
               {metadata.warningMessage ||
-                'Social platforms restrict unauthenticated direct HTTP profile requests. Set SCRAPER_COOKIES in .env or provide session cookie in settings for live payload access.'}
+                'Social platforms restrict unauthenticated direct HTTP profile requests. Set LINKEDIN_COOKIE_JSESSIONID in .env or provide session cookie in settings for live payload access.'}
             </p>
           </div>
         </div>
