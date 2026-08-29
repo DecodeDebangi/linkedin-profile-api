@@ -184,8 +184,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
       },
       { status: fetchResult.statusCode === 999 || fetchResult.statusCode === 403 ? 403 : 500 }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[SCRAPER API ROUTE] Error:', err);
+    const message = err instanceof Error ? err.message : 'Internal server error while processing extraction request.';
     return NextResponse.json(
       {
         success: false,
@@ -211,7 +212,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
           cookiesConfigured: Boolean(process.env.LINKEDIN_COOKIE_LI_AT),
           parsingStrategy: [],
         },
-        error: err.message || 'Internal server error while processing extraction request.',
+        error: message,
       },
       { status: 500 }
     );
