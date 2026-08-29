@@ -10,6 +10,7 @@ import {
 export interface ParseResult {
   data: ProfileData;
   strategiesUsed: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rawJsonLd?: any[];
   openGraph?: Record<string, string>;
   isParsedSuccessfully: boolean;
@@ -60,8 +61,9 @@ export function parseProfileHtml(
   $('.pv-browsemap-section, #browse-map, .aside, [data-section="browseMap"], .right-rail').remove();
 
   const strategiesUsed: string[] = [];
-  const rawMetadata: Record<string, any> = {};
+  const rawMetadata: Record<string, unknown> = {};
   const openGraph: Record<string, string> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const jsonLdBlocks: any[] = [];
 
   // 1. Extract OpenGraph Meta Tags
@@ -469,7 +471,7 @@ function parseGitHubProfile(
   $: cheerio.CheerioAPI,
   url: string,
   openGraph: Record<string, string>,
-  rawMetadata: Record<string, any>
+  rawMetadata: Record<string, unknown>
 ): ProfileData {
   const name =
     $('.p-name').text().trim() ||
