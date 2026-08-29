@@ -7,12 +7,49 @@ import { ScrapeResponse, ScrapeMetadata } from '@/types/profile';
 export async function POST(req: NextRequest): Promise<NextResponse<ScrapeResponse>> {
   try {
     const body = await req.json().catch(() => ({}));
-    const { url, cookiesOverride, userAgentOverride } = body;
+    const { url, userAgentOverride } = body;
+
+    // 1. Extract Credentials from HTTP Headers (Preferred RESTful Standard for API Clients / Postman)
+    const authHeader = req.headers.get('authorization') || '';
+    const headerLiAt = req.headers.get('x-linkedin-li-at') || req.headers.get('x-li-at') || '';
+    const headerJSession = req.headers.get('x-linkedin-jsessionid') || req.headers.get('x-jsessionid') || '';
+    const customCookieHeader = req.headers.get('x-scraper-cookies') || req.headers.get('x-cookies') || '';
+
+    let dynamicCookies = customCookieHeader;
+
+    if (!dynamicCookies && headerLiAt && headerJSession) {
+      dynamicCookies = `JSESSIONID="${headerJSession.replace(/^"|"$/g, '')}"; li_at=${headerLiAt.trim()}`;
+    } else if (!dynamicCookies && headerLiAt) {
+      dynamicCookies = `li_at=${headerLiAt.trim()}`;
+    } else if (!dynamicCookies && authHeader) {
+      dynamicCookies = authHeader.replace(/^Bearer\s+/i, '').trim();
+    }
+
+    // 2. Fallback to Request Body keys if HTTP Headers are not provided
+    if (!dynamicCookies) {
+      const { cookiesOverride, cookies, li_at, jsessionid } = body;
+      const bodyLiAt = (li_at || '').trim();
+      const bodyJSession = (jsessionid || '').trim();
+
+      if (bodyLiAt && bodyJSession) {
+        dynamicCookies = `JSESSIONID="${bodyJSession.replace(/^"|"$/g, '')}"; li_at=${bodyLiAt}`;
+      } else if (bodyLiAt) {
+        dynamicCookies = `li_at=${bodyLiAt}`;
+      } else {
+        dynamicCookies = cookiesOverride || cookies || '';
+      }
+    }
+
+    const cookiesConfigured = Boolean(
+      process.env.LINKEDIN_COOKIE_LI_AT ||
+      process.env.LINKEDIN_COOKIE_JSESSIONID ||
+      dynamicCookies
+    );
 
     console.log('\n======================================================================');
     console.log('[SCRAPER API ROUTE] Incoming Scrape Request');
     console.log('Target Input:', url);
-    console.log('Cookies Configured:', Boolean(process.env.LINKEDIN_COOKIE_LI_AT || cookiesOverride));
+    console.log('Cookies Configured:', cookiesConfigured);
     console.log('----------------------------------------------------------------------');
 
     // 1. Validate & Normalize Input URL / Handle
@@ -39,7 +76,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
             statusCode: 400,
             isMock: false,
             source: 'live_http',
-            cookiesConfigured: Boolean(process.env.LINKEDIN_COOKIE_LI_AT || cookiesOverride),
+            cookiesConfigured,
             parsingStrategy: [],
           },
           error: 'Please enter a valid profile URL or LinkedIn ID (e.g. "https://www.linkedin.com/in/debangic/").',
@@ -78,7 +115,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
             statusCode: 400,
             isMock: false,
             source: 'live_http',
-            cookiesConfigured: Boolean(process.env.LINKEDIN_COOKIE_LI_AT || cookiesOverride),
+            cookiesConfigured,
             parsingStrategy: [],
           },
           error: 'Could not normalize profile URL. Please check the URL format.',
@@ -87,13 +124,11 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
       );
     }
 
-    const cookiesConfigured = Boolean(process.env.LINKEDIN_COOKIE_LI_AT || cookiesOverride);
-
     // 2. Perform direct HTTP server-to-server request
     console.log('[HTTP FETCHER] Initiating direct server-to-server HTTP request...');
     const fetchResult = await fetchProfilePayload({
       url: cleanUrl,
-      cookiesOverride,
+      cookiesOverride: dynamicCookies,
       userAgentOverride,
     });
 
@@ -146,7 +181,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
     if (fetchResult.isAuthWall) {
       errorMessage = cookiesConfigured
         ? `LinkedIn returned an AuthWall (HTTP ${fetchResult.statusCode}). The provided session cookie may be expired or invalid.`
-        : `LinkedIn restricts unauthenticated HTTP requests (HTTP ${fetchResult.statusCode} AuthWall). Please provide valid session cookies in .env.local (LINKEDIN_COOKIE_LI_AT) or via Advanced Settings.`;
+        : `LinkedIn restricts unauthenticated HTTP requests (HTTP ${fetchResult.statusCode} AuthWall). Please provide valid session cookies in .env.local (LINKEDIN_COOKIE_LI_AT & LINKEDIN_COOKIE_JSESSIONID) or via Advanced Settings.`;
     } else if (fetchResult.error) {
       errorMessage = `Network request error: ${fetchResult.error}`;
     }
@@ -209,7 +244,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
           statusCode: 500,
           isMock: false,
           source: 'live_http',
-          cookiesConfigured: Boolean(process.env.LINKEDIN_COOKIE_LI_AT),
+          cookiesConfigured: Boolean(process.env.LINKEDIN_COOKIE_LI_AT || process.env.LINKEDIN_COOKIE_JSESSIONID),
           parsingStrategy: [],
         },
         error: message,

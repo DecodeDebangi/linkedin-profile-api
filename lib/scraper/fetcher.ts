@@ -90,16 +90,22 @@ async function executeSingleFetch(
 export async function fetchProfilePayload(options: FetchOptions): Promise<FetchResult> {
   const { url, cookiesOverride, userAgentOverride, timeoutMs = 12000 } = options;
 
-  const envCookies = process.env.SCRAPER_COOKIES || process.env.LINKEDIN_COOKIE_LI_AT || '';
-  const rawCookie = (cookiesOverride || envCookies).trim();
+  const envLiAt = process.env.LINKEDIN_COOKIE_LI_AT || '';
+  const envJSession = process.env.LINKEDIN_COOKIE_JSESSIONID || process.env.JSESSIONID || '';
 
-  // Extract li_at and JSESSIONID dynamically
+  const rawCookie = (cookiesOverride || '').trim();
+
+  // Extract li_at from override string or fallback to LINKEDIN_COOKIE_LI_AT env
   const liAtMatch = rawCookie.match(/li_at=([^;\s]+)/i);
-  const cleanLiAt = liAtMatch ? cleanToken(liAtMatch[1]) : cleanToken(rawCookie);
+  const cleanLiAt = liAtMatch
+    ? cleanToken(liAtMatch[1])
+    : (envLiAt ? cleanToken(envLiAt) : (rawCookie && !rawCookie.includes('=') ? cleanToken(rawCookie) : ''));
 
+  // Extract JSESSIONID from override string or fallback to LINKEDIN_COOKIE_JSESSIONID env
   const jsessionMatch = rawCookie.match(/JSESSIONID=([^;\s]+)/i);
-  const rawJsession = jsessionMatch ? jsessionMatch[1] : (process.env.LINKEDIN_COOKIE_JSESSIONID || process.env.JSESSIONID || '');
-  const cleanJsession = cleanToken(rawJsession);
+  const cleanJsession = jsessionMatch
+    ? cleanToken(jsessionMatch[1])
+    : cleanToken(envJSession);
 
   // Build full Cookie string with BOTH JSESSIONID and li_at if present
   let cookieHeader = '';

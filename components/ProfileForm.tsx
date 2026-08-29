@@ -115,7 +115,7 @@ export const ProfileForm: React.FC<ProfileFormProps> = ({
               <span>LinkedIn Session Cookies Injection (`Cookie` Header)</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              LinkedIn protects private profile endpoints with an auth-wall (HTTP 999). To scrape live private profile details, paste your session cookie (e.g. <code className="text-amber-300 bg-slate-900 px-1 py-0.5 rounded">li_at=AQED...</code>) here or set <code className="text-indigo-300 bg-slate-900 px-1 py-0.5 rounded">SCRAPER_COOKIES</code> in your <code className="text-indigo-300">.env</code> file.
+              LinkedIn protects private profile endpoints with an auth-wall (HTTP 999). To scrape live private profile details, paste your session cookie (e.g. <code className="text-amber-300 bg-slate-900 px-1 py-0.5 rounded">li_at=AQED...</code>) here or set <code className="text-indigo-300 bg-slate-900 px-1 py-0.5 rounded">LINKEDIN_COOKIE_LI_AT</code> & <code className="text-indigo-300 bg-slate-900 px-1 py-0.5 rounded">LINKEDIN_COOKIE_JSESSIONID</code> in your <code className="text-indigo-300">.env</code> file.
             </p>
             <textarea
               rows={2}
