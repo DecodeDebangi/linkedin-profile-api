@@ -135,7 +135,7 @@ export function parseProfileHtml(
   // 3. Extract GitHub-specific profile data if GitHub URL
   if (url.includes('github.com')) {
     strategiesUsed.push('GitHub DOM Parser');
-    const ghData = parseGitHubProfile($, url, openGraph, rawMetadata);
+    const ghData = parseGitHubProfile($, url, openGraph);
     return {
       data: ghData,
       strategiesUsed,
@@ -587,14 +587,6 @@ export function parseProfileHtml(
     certifications,
     languages,
     profileImageUrls,
-    rawMetadata: {
-      ...rawMetadata,
-      pageTitle: $('title').text().trim(),
-      avatarExtracted: Boolean(profileImageUrls.avatar),
-      bannerExtracted: Boolean(profileImageUrls.banner),
-      jsonLdCount: jsonLdBlocks.length,
-      openGraphCount: Object.keys(openGraph).length,
-    },
   };
 
   const isParsedSuccessfully = Boolean(name && name !== 'LinkedIn' && name !== 'Profile Member');
@@ -611,8 +603,7 @@ export function parseProfileHtml(
 function parseGitHubProfile(
   $: cheerio.CheerioAPI,
   url: string,
-  openGraph: Record<string, string>,
-  rawMetadata: Record<string, unknown>
+  openGraph: Record<string, string>
 ): ProfileData {
   const name =
     $('.p-name').text().trim() ||
@@ -662,10 +653,6 @@ function parseGitHubProfile(
     languages: [],
     profileImageUrls: {
       avatar: avatar ? (avatar.startsWith('http') ? avatar : `https://github.com${avatar}`) : undefined,
-    },
-    rawMetadata: {
-      ...rawMetadata,
-      githubUsername: username,
     },
   };
 }

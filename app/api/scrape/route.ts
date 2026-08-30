@@ -4,7 +4,7 @@ import { parseProfileHtml } from '@/lib/scraper/parser';
 import { normalizeProfileUrl } from '@/lib/scraper/urlNormalizer';
 import { ScrapeResponse, ScrapeMetadata } from '@/types/profile';
 
-// API Route for profile scraping with dynamic cookie support
+// API Route for profile scraping with dynamic cookie support & clean response schema
 export async function POST(req: NextRequest): Promise<NextResponse<ScrapeResponse>> {
   try {
     const body = await req.json().catch(() => ({}));

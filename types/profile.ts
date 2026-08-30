@@ -49,7 +49,6 @@ export interface ProfileData {
   certifications: CertificationItem[];
   languages: string[];
   profileImageUrls: ProfileImageUrls;
-  rawMetadata?: Record<string, unknown>;
 }
 
 export interface ScrapeRequest {
