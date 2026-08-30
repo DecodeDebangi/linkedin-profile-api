@@ -73,11 +73,7 @@ function isValidLocation(loc: string): boolean {
   return !INVALID_LOCATION_PATTERNS.some((pattern) => pattern.test(loc));
 }
 
-export function parseProfileHtml(
-  html: string,
-  url: string,
-  secondaryPayloads?: Record<string, string>
-): ParseResult {
+export function parseProfileHtml(html: string): ParseResult {
   const $ = cheerio.load(html);
 
   // Remove recommendation sidebars ("People Also Viewed") so we don't pick up other people's schools/companies

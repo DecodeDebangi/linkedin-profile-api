@@ -138,7 +138,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
 
     // 3. Parse HTML content if request returned HTML
     if (fetchResult.html) {
-      const parsed = parseProfileHtml(fetchResult.html, cleanUrl, fetchResult.secondaryPayloads);
+      const parsed = parseProfileHtml(fetchResult.html);
 
       console.log('----------------------------------------------------------------------');
       console.log('[PARSER ENGINE] Extracted Profile Data Summary:');
