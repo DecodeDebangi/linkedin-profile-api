@@ -132,18 +132,7 @@ export function parseProfileHtml(
     strategiesUsed.push('JSON-LD Microdata');
   }
 
-  // 3. Extract GitHub-specific profile data if GitHub URL
-  if (url.includes('github.com')) {
-    strategiesUsed.push('GitHub DOM Parser');
-    const ghData = parseGitHubProfile($, url, openGraph);
-    return {
-      data: ghData,
-      strategiesUsed,
-      rawJsonLd: jsonLdBlocks,
-      openGraph,
-      isParsedSuccessfully: Boolean(ghData.name),
-    };
-  }
+
 
   // 4. Try parsing JSON-LD Schema Person
   const personBlock = jsonLdBlocks.find(
@@ -600,59 +589,4 @@ export function parseProfileHtml(
   };
 }
 
-function parseGitHubProfile(
-  $: cheerio.CheerioAPI,
-  url: string,
-  openGraph: Record<string, string>
-): ProfileData {
-  const name =
-    $('.p-name').text().trim() ||
-    openGraph['og:title']?.replace(/\(.*?\)/g, '').trim() ||
-    $('.vcard-fullname').text().trim() ||
-    '';
 
-  const username = $('.p-nickname').text().trim() || url.split('github.com/')[1]?.split('/')[0] || '';
-  const headline = $('.p-note').text().trim() || openGraph['og:description'] || (username ? `@${username}` : '');
-  const location = $('[itemprop="homeLocation"], .p-label').text().trim() || '';
-  const about = $('.p-note').text().trim() || '';
-  const avatar = $('.avatar-user').attr('src') || openGraph['og:image'] || '';
-  const company = $('[itemprop="worksFor"], .p-org').text().trim();
-
-  const experience: ExperienceItem[] = [];
-  const skills: string[] = [];
-
-  $('.pinned-item-list-item').each((idx, el) => {
-    const repoName = $(el).find('.repo').text().trim();
-    const repoDesc = $(el).find('.pinned-item-desc').text().trim();
-    const lang = $(el).find('[itemprop="programmingLanguage"]').text().trim();
-
-    if (repoName) {
-      experience.push({
-        id: `gh-repo-${idx}`,
-        title: repoName,
-        company: company || 'GitHub Repository',
-        dates: 'Public Project',
-        description: repoDesc,
-        skillsUsed: lang ? [lang] : [],
-      });
-      if (lang && !skills.includes(lang)) {
-        skills.push(lang);
-      }
-    }
-  });
-
-  return {
-    name: name || username || 'GitHub User',
-    headline,
-    location,
-    about,
-    experience,
-    education: [],
-    skills,
-    certifications: [],
-    languages: [],
-    profileImageUrls: {
-      avatar: avatar ? (avatar.startsWith('http') ? avatar : `https://github.com${avatar}`) : undefined,
-    },
-  };
-}

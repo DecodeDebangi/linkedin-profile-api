@@ -61,7 +61,7 @@ export interface ScrapeRequest {
 export interface ScrapeMetadata {
   scrapedAt: string;
   url: string;
-  platform: 'linkedin' | 'github' | 'twitter' | 'generic';
+  platform: 'linkedin';
   statusCode: number;
   isMock: boolean;
   source: 'live_http' | 'json_ld' | 'mock_fallback' | 'custom_session';
