@@ -12,8 +12,8 @@ A production-ready Next.js 15 application built with TypeScript and Tailwind CSS
 
 ### Step 1: Clone & Install Dependencies
 ```bash
-git clone https://github.com/DecodeDebangi/profile-scraper-utility.git
-cd profile-scraper-utility
+git clone https://github.com/DecodeDebangi/linkedin-profile-api.git
+cd linkedin-profile-api
 npm install
 ```
 
@@ -27,7 +27,7 @@ Edit `.env.local` to provide your active LinkedIn session cookies:
 ```env
 # LinkedIn Session Cookies for Direct HTTP Scraping
 LINKEDIN_COOKIE_LI_AT="AQED..."
-LINKEDIN_COOKIE_JSESSIONID="ajax:1566609012241263581"
+LINKEDIN_COOKIE_JSESSIONID="ajax:156..."
 ```
 
 > **How to get your session cookies**:
@@ -251,7 +251,7 @@ Desktop LinkedIn renders profiles as Single Page Applications (SPAs), leaving em
 ## 🏗 5. Architecture & File Tree
 
 ```text
-profile-scraper-utility/
+linkedin-profile-api/
 ├── app/
 │   ├── api/
 │   │   └── scrape/
