@@ -4,6 +4,15 @@ A production-ready Next.js 15 application built with TypeScript and Tailwind CSS
 
 ---
 
+## 📍 Table of Contents
+- [🚀 1. Setup Instructions](#-1-setup-instructions)
+- [📖 2. API Documentation](#-2-api-documentation)
+- [🔬 3. Our Approach](#-3-our-approach)
+- [⚠️ 4. Challenges I Faced & How I Resolved Them (In Detail)](#%EF%B8%8F-4-challenges-i-faced--how-i-resolved-them-in-detail)
+- [🏗 5. Architecture & File Tree](#-5-architecture--file-tree)
+
+---
+
 ## 🚀 1. Setup Instructions
 
 ### Prerequisites
@@ -76,9 +85,12 @@ You can supply session cookies via any of the following 3 flexible methods (eval
 ```
 - `url` *(string, required)*: Target profile URL or LinkedIn ID handle (e.g. `"satyanadella"`, `"in/satyanadella"`, or full URL).
 
----
+<details>
+<summary><b>🧪 Click to expand Example cURL Requests & Sample JSON Response</b></summary>
 
-### Example cURL Requests
+<br />
+
+#### Example cURL Requests
 
 **1. Using Custom Headers:**
 ```bash
@@ -102,41 +114,55 @@ curl --location 'http://localhost:3000/api/scrape' \
 
 ---
 
-### Success Response (`200 OK`)
+#### Success Response (`200 OK`)
 ```json
 {
   "success": true,
   "data": {
-    "name": "Debangi Choudhury",
-    "headline": "Senior Software Engineer @LogixalInc| Full-Stack & AI Integration",
-    "location": "India",
-    "about": "Debangi Choudhury is a Senior Software Engineer...",
+    "name": "Satya Nadella",
+    "headline": "Chairman and CEO at Microsoft",
+    "location": "Redmond, Washington, United States",
+    "about": "Chairman and CEO of Microsoft.",
     "experience": [
       {
         "id": "exp-0",
-        "title": "Senior Software Engineer",
-        "company": "Logixal Inc",
-        "dates": "May 2025 - Present",
-        "skillsUsed": ["TypeScript", "JavaScript", "React", "Next.js"]
+        "title": "Chairman and CEO",
+        "company": "Microsoft",
+        "dates": "Feb 2014 - Present",
+        "skillsUsed": ["Cloud Computing", "Enterprise Software", "Strategy", "Leadership"]
       },
       {
-        "id": "exp-1-0",
-        "title": "Technical Delivery Manager",
-        "company": "AVRL",
-        "dates": "Jan 2025 - Apr 2025",
-        "skillsUsed": ["TypeScript", "React", "Node.js"]
+        "id": "exp-1",
+        "title": "Executive Vice President, Cloud and Enterprise",
+        "company": "Microsoft",
+        "dates": "2011 - 2014",
+        "skillsUsed": ["Cloud Computing", "Azure", "Distributed Systems"]
       }
     ],
     "education": [
       {
         "id": "edu-dom-0",
-        "school": "University of Engineering & Management (UEM)",
-        "degree": "Bachelor of Technology - BTech",
+        "school": "University of Chicago Booth School of Business",
+        "degree": "Master of Business Administration - MBA",
+        "fieldOfStudy": "Business Administration",
+        "dates": "1997"
+      },
+      {
+        "id": "edu-dom-1",
+        "school": "University of Wisconsin-Milwaukee",
+        "degree": "Master of Science - MS",
         "fieldOfStudy": "Computer Science",
-        "dates": "2017 - 2021"
+        "dates": "1990"
+      },
+      {
+        "id": "edu-dom-2",
+        "school": "Manipal Institute of Technology",
+        "degree": "Bachelor of Technology - BTech",
+        "fieldOfStudy": "Electrical and Electronics Engineering",
+        "dates": "1988"
       }
     ],
-    "skills": ["TypeScript", "JavaScript", "React", "Next.js", "Python", "Node.js"],
+    "skills": ["Cloud Computing", "Enterprise Software", "Strategy", "Leadership", "Distributed Systems", "AI Integration"],
     "certifications": [],
     "languages": [],
     "profileImageUrls": {
@@ -146,7 +172,7 @@ curl --location 'http://localhost:3000/api/scrape' \
   },
   "metadata": {
     "scrapedAt": "2026-08-29T18:30:00.000Z",
-    "url": "https://www.linkedin.com/in/debangic/",
+    "url": "https://www.linkedin.com/in/satyanadella/",
     "platform": "linkedin",
     "statusCode": 200,
     "isMock": false,
@@ -160,6 +186,8 @@ curl --location 'http://localhost:3000/api/scrape' \
   }
 }
 ```
+
+</details>
 
 ---
 
@@ -179,11 +207,12 @@ Desktop LinkedIn renders profiles as Single Page Applications (SPAs), leaving em
 
 ---
 
-## ⚠️ 4. Known Limitations & How I Resolved Them (In Detail)
+## ⚠️ 4. Challenges I Faced & How I Resolved Them (In Detail)
 
-### 🛠️ Technical Challenges & Detailed Solutions
+<details>
+<summary><b>🛠️ Click to expand Detailed Technical Challenges & Solutions (1–6)</b></summary>
 
----
+<br />
 
 #### 1. Empty Education Payload (`education: []`) in Desktop HTML
 * **The Problem**: Scraping desktop LinkedIn HTML returned empty `education: []` arrays even for completed profiles.
@@ -238,10 +267,9 @@ Desktop LinkedIn renders profiles as Single Page Applications (SPAs), leaving em
   $('img[src*="profile-displaybackgroundimage"]').not('img[src*="profile-displayphoto"]').first();
   ```
 
----
+</details>
 
-### ⚠️ Known Operating Limitations
-
+### ⚠️ Known Limitations
 1. **Session Cookie Expiration**: Authenticated session cookies (`li_at`) expire periodically and must be updated in `.env.local` or via UI settings.
 2. **Platform Rate Limits & IP Blocks**: Cloud server IPs making rapid consecutive requests without delay may encounter rate limiting (HTTP 429).
 3. **DOM Selector Evolution**: Social platforms periodically update CSS class names. The parser mitigates this via a multi-strategy fallback cascade (OpenGraph ➔ JSON-LD ➔ DOM tree selectors).
@@ -249,6 +277,11 @@ Desktop LinkedIn renders profiles as Single Page Applications (SPAs), leaving em
 ---
 
 ## 🏗 5. Architecture & File Tree
+
+<details>
+<summary><b>📂 Click to expand Project Architecture & File Tree</b></summary>
+
+<br />
 
 ```text
 linkedin-profile-api/
@@ -274,6 +307,8 @@ linkedin-profile-api/
 ├── .env.example                  # Environment template
 └── README.md                     # Application documentation
 ```
+
+</details>
 
 ---
 
