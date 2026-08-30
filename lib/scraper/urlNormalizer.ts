@@ -3,14 +3,14 @@
  */
 export interface NormalizedUrl {
   url: string;
-  platform: 'linkedin' | 'github' | 'twitter' | 'generic';
+  platform: 'linkedin';
   handle: string;
 }
 
 export function normalizeProfileUrl(input: string): NormalizedUrl {
   const trimmed = input.trim();
   if (!trimmed) {
-    return { url: '', platform: 'generic', handle: '' };
+    return { url: '', platform: 'linkedin', handle: '' };
   }
 
   // Check if full URL
@@ -18,25 +18,20 @@ export function normalizeProfileUrl(input: string): NormalizedUrl {
     try {
       const parsed = new URL(trimmed);
       const host = parsed.hostname.toLowerCase();
-      let platform: 'linkedin' | 'github' | 'twitter' | 'generic' = 'generic';
-      let handle = '';
 
-      if (host.includes('linkedin.com')) {
-        platform = 'linkedin';
-        const parts = parsed.pathname.split('/').filter(Boolean);
-        const inIdx = parts.indexOf('in');
-        handle = inIdx !== -1 && parts[inIdx + 1] ? parts[inIdx + 1] : parts[0] || '';
-      } else if (host.includes('github.com')) {
-        platform = 'github';
-        handle = parsed.pathname.split('/').filter(Boolean)[0] || '';
-      } else if (host.includes('twitter.com') || host.includes('x.com')) {
-        platform = 'twitter';
-        handle = parsed.pathname.split('/').filter(Boolean)[0] || '';
+      // Must be a LinkedIn domain
+      if (!host.includes('linkedin.com')) {
+        return { url: '', platform: 'linkedin', handle: '' };
       }
 
-      return { url: trimmed, platform, handle };
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const inIdx = parts.indexOf('in');
+      const handle = inIdx !== -1 && parts[inIdx + 1] ? parts[inIdx + 1] : parts[0] || '';
+
+      const normalizedUrl = handle ? `https://www.linkedin.com/in/${handle}` : trimmed;
+      return { url: normalizedUrl, platform: 'linkedin', handle };
     } catch {
-      // Fall through to string manipulation
+      return { url: '', platform: 'linkedin', handle: '' };
     }
   }
 
@@ -50,16 +45,12 @@ export function normalizeProfileUrl(input: string): NormalizedUrl {
     };
   }
 
-  if (trimmed.includes('github.com/')) {
-    const handle = trimmed.replace(/^.*github\.com\//, '').replace(/\/.*$/, '');
-    return {
-      url: `https://github.com/${handle}`,
-      platform: 'github',
-      handle,
-    };
+  // Reject external domain inputs (e.g. "github.com/user", "google.com")
+  if (trimmed.includes('.') || trimmed.includes('/')) {
+    return { url: '', platform: 'linkedin', handle: '' };
   }
 
-  // Default assumption for bare handle (e.g. "debangic"): treat as LinkedIn ID
+  // Handle bare handles (e.g. "satyanadella" or "@satyanadella")
   const cleanHandle = trimmed.replace(/^@/, '').replace(/\/.*$/, '');
   return {
     url: `https://www.linkedin.com/in/${cleanHandle}`,

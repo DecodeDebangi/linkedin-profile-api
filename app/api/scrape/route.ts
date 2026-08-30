@@ -4,6 +4,7 @@ import { parseProfileHtml } from '@/lib/scraper/parser';
 import { normalizeProfileUrl } from '@/lib/scraper/urlNormalizer';
 import { ScrapeResponse, ScrapeMetadata } from '@/types/profile';
 
+// API Route for LinkedIn profile scraping with dynamic cookie support & clean response schema
 export async function POST(req: NextRequest): Promise<NextResponse<ScrapeResponse>> {
   try {
     const body = await req.json().catch(() => ({}));
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
           metadata: {
             scrapedAt: new Date().toISOString(),
             url: '',
-            platform: 'generic',
+            platform: 'linkedin',
             statusCode: 400,
             isMock: false,
             source: 'live_http',
@@ -111,14 +112,14 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
           metadata: {
             scrapedAt: new Date().toISOString(),
             url,
-            platform: 'generic',
+            platform: 'linkedin',
             statusCode: 400,
             isMock: false,
             source: 'live_http',
             cookiesConfigured,
             parsingStrategy: [],
           },
-          error: 'Could not normalize profile URL. Please check the URL format.',
+          error: 'Please provide a valid LinkedIn profile URL (e.g. "https://www.linkedin.com/in/satyanadella/").',
         },
         { status: 400 }
       );
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
 
     // 3. Parse HTML content if request returned HTML
     if (fetchResult.html) {
-      const parsed = parseProfileHtml(fetchResult.html, cleanUrl, fetchResult.secondaryPayloads);
+      const parsed = parseProfileHtml(fetchResult.html);
 
       console.log('----------------------------------------------------------------------');
       console.log('[PARSER ENGINE] Extracted Profile Data Summary:');
@@ -240,7 +241,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ScrapeRespons
         metadata: {
           scrapedAt: new Date().toISOString(),
           url: '',
-          platform: 'generic',
+          platform: 'linkedin',
           statusCode: 500,
           isMock: false,
           source: 'live_http',

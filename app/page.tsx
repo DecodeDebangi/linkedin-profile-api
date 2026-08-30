@@ -91,7 +91,7 @@ export default function HomePage() {
             Structured Data Profile Extraction Utility
           </h2>
           <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            Direct HTTP server-to-server extraction engine for LinkedIn, GitHub, and professional profile payloads. Extract structured JSON schema containing experience, education, skills, and certifications without headless browsers.
+            Direct HTTP server-to-server extraction engine for LinkedIn profile payloads. Extract structured JSON schema containing experience, education, skills, certifications, and languages without headless browsers.
           </p>
         </div>
 
@@ -129,7 +129,7 @@ export default function HomePage() {
             <ProfileView data={response.data} metadata={response.metadata} />
 
             {/* Collapsible Raw JSON Viewer */}
-            <RawJsonViewer json={response.data} metadata={response.metadata} />
+            <RawJsonViewer json={response.data} />
           </div>
         )}
 
