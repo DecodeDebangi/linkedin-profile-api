@@ -8,17 +8,12 @@ interface RawJsonViewerProps {
   metadata?: unknown;
 }
 
-export const RawJsonViewer: React.FC<RawJsonViewerProps> = ({ json, metadata }) => {
+export const RawJsonViewer: React.FC<RawJsonViewerProps> = ({ json }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fullPayload = {
-    metadata,
-    extractedData: json,
-  };
-
-  const jsonString = JSON.stringify(fullPayload, null, 2);
+  const jsonString = JSON.stringify(json, null, 2);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(jsonString);
@@ -51,7 +46,7 @@ export const RawJsonViewer: React.FC<RawJsonViewerProps> = ({ json, metadata }) 
               </h3>
             </div>
             <p className="text-xs text-slate-400">
-              Normalized schema payload containing all extracted fields & HTTP response metadata
+              Clean structured JSON profile payload containing name, headline, location, about, experience, education, skills, certifications, languages, and profile images when available.
             </p>
           </div>
         </button>

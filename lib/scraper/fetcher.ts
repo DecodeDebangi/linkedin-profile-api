@@ -14,7 +14,6 @@ export interface FetchResult {
   redirectUrl?: string;
   cookiesUsed: boolean;
   error?: string;
-  secondaryPayloads?: Record<string, string>;
 }
 
 // Mobile WebKit User-Agent forces LinkedIn to render static SSR HTML with pre-filled Education & Experience markup!

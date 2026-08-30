@@ -50,11 +50,30 @@ const COMMON_SKILLS_DICTIONARY = [
   'Microservices', 'DevOps', 'CI/CD', 'Product Strategy', 'Agile', 'Leadership',
 ];
 
-export function parseProfileHtml(
-  html: string,
-  url: string,
-  secondaryPayloads?: Record<string, string>
-): ParseResult {
+/**
+ * Blacklist patterns for non-geographic DOM strings in LinkedIn SSR HTML
+ */
+const INVALID_LOCATION_PATTERNS = [
+  /^https?:\/\//i,
+  /\(company website\)/i,
+  /^\d+(st|nd|rd|th)(\s+degree)?$/i,
+  /^\d{4}\s*[-–—]\s*(\d{4}|present)$/i,
+  /joined\s+\d{4}/i,
+  /contact information updated/i,
+  /learn more about how members/i,
+  /verified info/i,
+  /\d+\s+(connections|followers|members)/i,
+  /^(contact info|see all|show all|about|experience|education|skills|licenses|certifications|profile|message|report)/i,
+  /\b(inc|llc|ltd|corp|corporation|gmbh|pvt|private|limited|technologies|solutions|services|systems|software)\b/i,
+  /\b(university|college|school|institute|academy)\b/i,
+];
+
+function isValidLocation(loc: string): boolean {
+  if (!loc || loc.length < 2 || loc.length > 100) return false;
+  return !INVALID_LOCATION_PATTERNS.some((pattern) => pattern.test(loc));
+}
+
+export function parseProfileHtml(html: string): ParseResult {
   const $ = cheerio.load(html);
 
   // Remove recommendation sidebars ("People Also Viewed") so we don't pick up other people's schools/companies
@@ -109,18 +128,7 @@ export function parseProfileHtml(
     strategiesUsed.push('JSON-LD Microdata');
   }
 
-  // 3. Extract GitHub-specific profile data if GitHub URL
-  if (url.includes('github.com')) {
-    strategiesUsed.push('GitHub DOM Parser');
-    const ghData = parseGitHubProfile($, url, openGraph, rawMetadata);
-    return {
-      data: ghData,
-      strategiesUsed,
-      rawJsonLd: jsonLdBlocks,
-      openGraph,
-      isParsedSuccessfully: Boolean(ghData.name),
-    };
-  }
+
 
   // 4. Try parsing JSON-LD Schema Person
   const personBlock = jsonLdBlocks.find(
@@ -269,36 +277,60 @@ export function parseProfileHtml(
     }
   }
 
-  // 8. Extract Location Dynamically from Mobile DOM & HTML Payload
-  const mobileLocCandidate = $('.basic-profile-section .body-small.text-color-text-low-emphasis').first().text().replace(/\s+/g, ' ').replace(/\d+\s+connections.*$/i, '').trim();
-  if (mobileLocCandidate && mobileLocCandidate !== 'India' && mobileLocCandidate.length > 2) {
-    location = mobileLocCandidate;
-  }
 
-  if (!location) {
+
+  // 8. Extract Location Dynamically from Mobile DOM & HTML Payload
+  $('.bg-color-background-container .body-small.text-color-text-low-emphasis, .basic-profile-section .body-small.text-color-text-low-emphasis, .top-card-layout__first-subline span, .top-card__subline-item, address, [data-section="location"]').each((_, el) => {
+    if (location && isValidLocation(location)) return;
+    const $clone = $(el).clone();
+    $clone.find('.whitespace-nowrap, .dot-separator, .member-current-company, span[dir="ltr"]').remove();
+    const candidate = $clone.text().replace(/\s+/g, ' ').trim();
+    if (isValidLocation(candidate)) {
+      location = candidate;
+    }
+  });
+
+  if (!location || !isValidLocation(location)) {
     const locMatch =
+      mainContentText.match(/"addressLocality":\s*"([^"]+)"/) ||
       mainContentText.match(/"locality":\s*"([^"]+)"/) ||
       mainContentText.match(/"location":\s*"([^"]+)"/) ||
-      mainContentText.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*(?:United States|India|United Kingdom|Canada|Germany|Remote))/);
+      mainContentText.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*(?:United States|India|United Kingdom|Canada|Germany|California|Washington|New York|Texas|England|Remote))/);
 
-    if (locMatch) {
+    if (locMatch && isValidLocation(locMatch[1])) {
       location = cleanHtmlEntities(locMatch[1]);
     }
   }
 
-  // 9. Extract Skills Dynamically from Headline & Main Content
-  COMMON_SKILLS_DICTIONARY.forEach((sk) => {
-    try {
+  // 9. Extract Skills Dynamically from Mobile SSR & Desktop DOM
+  $(
+    '.skills-list .skill-item, .skills-container li, .skills-section li, .pv-skill-category-entity__name, #skills + div li, [data-section="skills"] li'
+  ).each((_, el) => {
+    const $clone = $(el).clone();
+    $clone.find('.dot-separator, .see-more, .see-less, svg, button').remove();
+    const rawSkill = $clone.find('span[dir="ltr"]').first().text().trim() || $clone.text().replace(/\s+/g, ' ').trim();
+    const cleanSkill = cleanHtmlEntities(rawSkill.replace(/…more|see less|see more/gi, '').trim());
+
+    if (cleanSkill && cleanSkill.length >= 2 && cleanSkill.length <= 80 && !skills.includes(cleanSkill)) {
+      skills.push(cleanSkill);
+    }
+  });
+
+  if (skills.length > 0) {
+    strategiesUsed.push('Mobile SSR Skills DOM Parser');
+  }
+
+  // Fallback: Scan dictionary against user headline and about text ONLY (never raw HTML source code)
+  if (skills.length === 0) {
+    COMMON_SKILLS_DICTIONARY.forEach((sk) => {
       const regex = new RegExp(`\\b${escapeRegExp(sk)}\\b`, 'i');
-      if (regex.test(headline) || regex.test(mainContentText)) {
+      if (regex.test(headline) || regex.test(about)) {
         if (!skills.includes(sk)) {
           skills.push(sk);
         }
       }
-    } catch {
-      // Fallback
-    }
-  });
+    });
+  }
 
   // 10. Extract ALL Experience Records Dynamically from Mobile SSR & Desktop DOM
   $('.experience-container ol > li').each((idx, el) => {
@@ -316,13 +348,22 @@ export function parseProfileHtml(
           if (txt) datesArr.push(txt);
         });
 
+        const roleSkills: string[] = [];
+        $(sEl).find('.skills-used, .role-skills, span:contains("Skills:")').each((_, skEl) => {
+          const txt = $(skEl).text().replace(/^Skills:\s*/i, '').trim();
+          txt.split(/,\s*|·\s*/).forEach((s) => {
+            const c = cleanHtmlEntities(s);
+            if (c && c.length > 1 && !roleSkills.includes(c)) roleSkills.push(c);
+          });
+        });
+
         if (roleTitle) {
           experience.push({
             id: `exp-${idx}-${sIdx}`,
             title: cleanHtmlEntities(roleTitle),
             company: cleanHtmlEntities(companyName),
             dates: cleanHtmlEntities(datesArr.join(' ') || 'N/A'),
-            skillsUsed: skills.slice(0, 5),
+            skillsUsed: roleSkills,
           });
         }
       });
@@ -337,13 +378,22 @@ export function parseProfileHtml(
         if (txt) datesArr.push(txt);
       });
 
+      const roleSkills: string[] = [];
+      $(el).find('.skills-used, .role-skills, span:contains("Skills:")').each((_, skEl) => {
+        const txt = $(skEl).text().replace(/^Skills:\s*/i, '').trim();
+        txt.split(/,\s*|·\s*/).forEach((s) => {
+          const c = cleanHtmlEntities(s);
+          if (c && c.length > 1 && !roleSkills.includes(c)) roleSkills.push(c);
+        });
+      });
+
       if (title) {
         experience.push({
           id: `exp-${idx}`,
           title: cleanHtmlEntities(title),
           company: cleanHtmlEntities(company || 'Organization'),
           dates: cleanHtmlEntities(datesArr.join(' ') || 'N/A'),
-          skillsUsed: skills.slice(0, 5),
+          skillsUsed: roleSkills,
         });
       }
     }
@@ -362,7 +412,7 @@ export function parseProfileHtml(
           title: cleanHtmlEntities(title || 'Position Title'),
           company: cleanHtmlEntities(company || 'Organization'),
           dates: cleanHtmlEntities(dates || 'N/A'),
-          skillsUsed: skills.slice(0, 5),
+          skillsUsed: [],
         });
       }
     });
@@ -430,6 +480,82 @@ export function parseProfileHtml(
     strategiesUsed.push('Mobile SSR Education DOM Parser');
   }
 
+  // 12. Extract Certifications / Licenses Dynamically from Mobile SSR & Desktop DOM
+  $(
+    '.certifications-section li, .certifications-section .sub-list-item, .certifications-container ol > li, .license-certificate-container li, .certifications-item, #certifications + div ul > li, .pv-profile-section--certifications li, [data-section="certifications"] li, [data-section="licensesAndCertifications"] li'
+  ).each((idx, el) => {
+    const certTitle = $(el)
+      .find('.list-item-heading, .certifications-item__title, h3, .t-bold')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    const issuer = $(el)
+      .find('.list-item-detail .description, .list-item-detail, .certifications-item__subtitle, .t-normal, .body-small')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    const dateSpans = $(el).find('.body-small.text-color-text-low-emphasis span.body-small, .certifications-item__duration, .date-range');
+    let issueDate = '';
+    if (dateSpans.length > 0) {
+      const datesArr: string[] = [];
+      dateSpans.each((_, dEl) => {
+        const txt = $(dEl).text().replace(/[\n\r\s]+/g, ' ').trim();
+        if (txt) datesArr.push(txt);
+      });
+      issueDate = datesArr.join(' ');
+    }
+
+    const credentialId = $(el).find('.credential-id, .body-small:contains("Credential")').text().trim();
+
+    if (certTitle && certTitle.length > 1 && !certifications.some((c) => c.name.toLowerCase() === cleanHtmlEntities(certTitle).toLowerCase())) {
+      certifications.push({
+        id: `cert-dom-${idx}`,
+        name: cleanHtmlEntities(certTitle),
+        issuer: cleanHtmlEntities(issuer || 'Issuing Organization'),
+        issueDate: cleanHtmlEntities(issueDate || 'N/A'),
+        credentialId: credentialId ? cleanHtmlEntities(credentialId) : undefined,
+      });
+    }
+  });
+
+  if (certifications.length > 0) {
+    strategiesUsed.push('Mobile SSR Certifications DOM Parser');
+  }
+
+  // 13. Extract Languages Dynamically from Mobile SSR & Desktop DOM
+  $(
+    '.languages-section li, .languages-section .sub-list-item, .languages-container ol > li, .language-item, #languages + div ul > li, .pv-profile-section--languages li, [data-section="languages"] li'
+  ).each((_, el) => {
+    const langName = $(el)
+      .find('.list-item-heading, .language-name, h3, .t-bold')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    const proficiency = $(el)
+      .find('.body-small.text-color-text span[dir="ltr"], .body-small.text-color-text-low-emphasis span[dir="ltr"], .language-proficiency, .t-normal')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    if (langName && langName.length > 1) {
+      const formatted = proficiency && proficiency !== langName ? `${cleanHtmlEntities(langName)} (${cleanHtmlEntities(proficiency)})` : cleanHtmlEntities(langName);
+      if (!languages.includes(formatted)) {
+        languages.push(formatted);
+      }
+    }
+  });
+
+  if (languages.length > 0) {
+    strategiesUsed.push('Mobile SSR Languages DOM Parser');
+  }
+
   name = cleanHtmlEntities(name);
   headline = cleanHtmlEntities(headline);
   location = cleanHtmlEntities(location);
@@ -446,14 +572,6 @@ export function parseProfileHtml(
     certifications,
     languages,
     profileImageUrls,
-    rawMetadata: {
-      ...rawMetadata,
-      pageTitle: $('title').text().trim(),
-      avatarExtracted: Boolean(profileImageUrls.avatar),
-      bannerExtracted: Boolean(profileImageUrls.banner),
-      jsonLdCount: jsonLdBlocks.length,
-      openGraphCount: Object.keys(openGraph).length,
-    },
   };
 
   const isParsedSuccessfully = Boolean(name && name !== 'LinkedIn' && name !== 'Profile Member');
@@ -467,64 +585,4 @@ export function parseProfileHtml(
   };
 }
 
-function parseGitHubProfile(
-  $: cheerio.CheerioAPI,
-  url: string,
-  openGraph: Record<string, string>,
-  rawMetadata: Record<string, unknown>
-): ProfileData {
-  const name =
-    $('.p-name').text().trim() ||
-    openGraph['og:title']?.replace(/\(.*?\)/g, '').trim() ||
-    $('.vcard-fullname').text().trim() ||
-    '';
 
-  const username = $('.p-nickname').text().trim() || url.split('github.com/')[1]?.split('/')[0] || '';
-  const headline = $('.p-note').text().trim() || openGraph['og:description'] || (username ? `@${username}` : '');
-  const location = $('[itemprop="homeLocation"], .p-label').text().trim() || '';
-  const about = $('.p-note').text().trim() || '';
-  const avatar = $('.avatar-user').attr('src') || openGraph['og:image'] || '';
-  const company = $('[itemprop="worksFor"], .p-org').text().trim();
-
-  const experience: ExperienceItem[] = [];
-  const skills: string[] = [];
-
-  $('.pinned-item-list-item').each((idx, el) => {
-    const repoName = $(el).find('.repo').text().trim();
-    const repoDesc = $(el).find('.pinned-item-desc').text().trim();
-    const lang = $(el).find('[itemprop="programmingLanguage"]').text().trim();
-
-    if (repoName) {
-      experience.push({
-        id: `gh-repo-${idx}`,
-        title: repoName,
-        company: company || 'GitHub Repository',
-        dates: 'Public Project',
-        description: repoDesc,
-        skillsUsed: lang ? [lang] : [],
-      });
-      if (lang && !skills.includes(lang)) {
-        skills.push(lang);
-      }
-    }
-  });
-
-  return {
-    name: name || username || 'GitHub User',
-    headline,
-    location,
-    about,
-    experience,
-    education: [],
-    skills,
-    certifications: [],
-    languages: [],
-    profileImageUrls: {
-      avatar: avatar ? (avatar.startsWith('http') ? avatar : `https://github.com${avatar}`) : undefined,
-    },
-    rawMetadata: {
-      ...rawMetadata,
-      githubUsername: username,
-    },
-  };
-}
