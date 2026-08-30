@@ -317,19 +317,35 @@ export function parseProfileHtml(
     }
   }
 
-  // 9. Extract Skills Dynamically from Headline & Main Content
-  COMMON_SKILLS_DICTIONARY.forEach((sk) => {
-    try {
+  // 9. Extract Skills Dynamically from Mobile SSR & Desktop DOM
+  $(
+    '.skills-list .skill-item, .skills-container li, .skills-section li, .pv-skill-category-entity__name, #skills + div li, [data-section="skills"] li'
+  ).each((_, el) => {
+    const $clone = $(el).clone();
+    $clone.find('.dot-separator, .see-more, .see-less, svg, button').remove();
+    const rawSkill = $clone.find('span[dir="ltr"]').first().text().trim() || $clone.text().replace(/\s+/g, ' ').trim();
+    const cleanSkill = cleanHtmlEntities(rawSkill.replace(/…more|see less|see more/gi, '').trim());
+
+    if (cleanSkill && cleanSkill.length >= 2 && cleanSkill.length <= 80 && !skills.includes(cleanSkill)) {
+      skills.push(cleanSkill);
+    }
+  });
+
+  if (skills.length > 0) {
+    strategiesUsed.push('Mobile SSR Skills DOM Parser');
+  }
+
+  // Fallback: Scan dictionary against user headline and about text ONLY (never raw HTML source code)
+  if (skills.length === 0) {
+    COMMON_SKILLS_DICTIONARY.forEach((sk) => {
       const regex = new RegExp(`\\b${escapeRegExp(sk)}\\b`, 'i');
-      if (regex.test(headline) || regex.test(mainContentText)) {
+      if (regex.test(headline) || regex.test(about)) {
         if (!skills.includes(sk)) {
           skills.push(sk);
         }
       }
-    } catch {
-      // Fallback
-    }
-  });
+    });
+  }
 
   // 10. Extract ALL Experience Records Dynamically from Mobile SSR & Desktop DOM
   $('.experience-container ol > li').each((idx, el) => {
@@ -347,13 +363,22 @@ export function parseProfileHtml(
           if (txt) datesArr.push(txt);
         });
 
+        const roleSkills: string[] = [];
+        $(sEl).find('.skills-used, .role-skills, span:contains("Skills:")').each((_, skEl) => {
+          const txt = $(skEl).text().replace(/^Skills:\s*/i, '').trim();
+          txt.split(/,\s*|·\s*/).forEach((s) => {
+            const c = cleanHtmlEntities(s);
+            if (c && c.length > 1 && !roleSkills.includes(c)) roleSkills.push(c);
+          });
+        });
+
         if (roleTitle) {
           experience.push({
             id: `exp-${idx}-${sIdx}`,
             title: cleanHtmlEntities(roleTitle),
             company: cleanHtmlEntities(companyName),
             dates: cleanHtmlEntities(datesArr.join(' ') || 'N/A'),
-            skillsUsed: skills.slice(0, 5),
+            skillsUsed: roleSkills,
           });
         }
       });
@@ -368,13 +393,22 @@ export function parseProfileHtml(
         if (txt) datesArr.push(txt);
       });
 
+      const roleSkills: string[] = [];
+      $(el).find('.skills-used, .role-skills, span:contains("Skills:")').each((_, skEl) => {
+        const txt = $(skEl).text().replace(/^Skills:\s*/i, '').trim();
+        txt.split(/,\s*|·\s*/).forEach((s) => {
+          const c = cleanHtmlEntities(s);
+          if (c && c.length > 1 && !roleSkills.includes(c)) roleSkills.push(c);
+        });
+      });
+
       if (title) {
         experience.push({
           id: `exp-${idx}`,
           title: cleanHtmlEntities(title),
           company: cleanHtmlEntities(company || 'Organization'),
           dates: cleanHtmlEntities(datesArr.join(' ') || 'N/A'),
-          skillsUsed: skills.slice(0, 5),
+          skillsUsed: roleSkills,
         });
       }
     }
@@ -393,7 +427,7 @@ export function parseProfileHtml(
           title: cleanHtmlEntities(title || 'Position Title'),
           company: cleanHtmlEntities(company || 'Organization'),
           dates: cleanHtmlEntities(dates || 'N/A'),
-          skillsUsed: skills.slice(0, 5),
+          skillsUsed: [],
         });
       }
     });
