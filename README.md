@@ -292,41 +292,30 @@ Querying LinkedIn's private internal REST endpoints (such as `/voyager/api/ident
 ## ⚠️ 4. Challenges I Faced & How I Resolved Them (In Detail)
 
 <details>
-<summary><b>🛠️ Click to expand Detailed Technical Challenges & Solutions (1–6)</b></summary>
+<summary><b>🛠️ Click to expand Runtime Challenges & Troubleshooting Fixes (1–4)</b></summary>
 
 <br />
 
-#### 1. Empty Education Payload (`education: []`) in Desktop HTML
-* **The Problem**: Scraping desktop LinkedIn HTML returned empty `education: []` arrays even for completed profiles.
-* **Root Cause Analysis**: LinkedIn Desktop Web renders as a Client-Side Single Page Application (SPA). Education & Experience items below the fold are loaded asynchronously via JavaScript lazy-loading anchors (`<div id="profile-education-lazy-load">`). Standard server-side HTTP `fetch()` requests do not execute client JS engines.
-* **Detailed Resolution**: Switched the request User-Agent in `lib/scraper/fetcher.ts` to Mobile WebKit (`m_flagship3_profile_view_base`). LinkedIn Mobile Web serves static, pre-rendered Server-Side Rendered (SSR) HTML where `.education-container` and `.experience-container` DOM elements are 100% pre-populated directly in the initial HTML payload.
-
----
-
-#### 2. Account Session Revocation & Logouts (`Set-Cookie: liap=delete me`)
-* **The Problem**: Making automated scraper calls was invalidating active Chrome browser sessions and logging out the user.
-* **Root Cause Analysis**: Querying LinkedIn's private internal REST endpoints (`/voyager/api/...`) triggers security gatekeepers that detect non-browser TLS signatures, responding with `Set-Cookie: liap=delete me` and revoking active `li_at` session tokens.
-* **Detailed Resolution**: Strictly avoided all internal `/voyager/api` endpoints. All scraping is performed via standard Mobile Web page HTML requests (`/in/username`), mimicking regular browser page navigation to guarantee **zero session revocations** and keep browser sessions logged in indefinitely.
-
----
-
-#### 3. Loss of Nested Multi-Role Promotional Experience History
-* **The Problem**: Profiles with multiple promotional roles under a single company (e.g. SDE 1 ➔ SDE 2 ➔ SWE III at Google) only extracted the topmost single position, discarding previous roles.
-* **Root Cause Analysis**: Top-level flat DOM selectors (`.experience-item h3`) only selected the first child heading under company containers, ignoring nested promotional sub-lists (`ul li.role-container`).
-* **Detailed Resolution**: Developed a multi-level hierarchical DOM tree parser in `lib/scraper/parser.ts`. The parser inspects whether an experience block is a single-role or multi-role container, recursively traversing `ul li.role-container` nodes to extract every position title, organization name, and date range accurately.
-
----
-
-#### 4. Undici Node `fetch()` Redirect Loop Crashes
+#### 1. Node `undici` `fetch()` Redirect Loop Crashes (`TypeError: fetch failed`)
 * **The Problem**: Expired cookies or AuthWall redirects caused Node's `undici` HTTP client to throw unhandled `TypeError: fetch failed` due to `redirect count exceeded`.
 * **Root Cause Analysis**: Node 18+ native `fetch` follows HTTP 302 redirects automatically up to a maximum limit (20). When redirected to `/authwall`, LinkedIn initiates a redirect loop, causing unhandled process exceptions.
-* **Detailed Resolution**: Implemented redirect-safe exception handlers in `lib/scraper/fetcher.ts` using custom timeout abort controllers and try-catch blocks that intercept redirect errors gracefully, returning clean HTTP 302 AuthWall diagnostic responses.
+* **Detailed Resolution**: Implemented redirect-safe exception handlers in `lib/scraper/fetcher.ts` using custom timeout abort controllers and try-catch blocks that intercept redirect errors gracefully, returning clean HTTP 302 AuthWall diagnostic responses:
+  ```typescript
+  try {
+    const response = await fetch(url, { headers, redirect: 'follow' });
+  } catch (err: unknown) {
+    if (errObj.message?.includes('redirect') || errObj.cause?.message?.includes('redirect')) {
+      isRedirectError = true;
+      statusCode = 302;
+    }
+  }
+  ```
 
 ---
 
-#### 5. False Positive AuthWall 500 Errors on Full 190+ KB HTML Payloads
+#### 2. False Positive AuthWall 500 Errors on Full 190+ KB HTML Payloads
 * **The Problem**: API returned HTTP 500 AuthWall errors even though the backend terminal logged 100% complete extracted profile data (name, 5 jobs, education, 23 skills).
-* **Root Cause Analysis**: `isAuthWall` checked `html.includes('sign-in')` or `html.includes('login-submit')` globally against the entire raw HTML payload. LinkedIn's Mobile SSR template renders unauthenticated navigation links (`<a href="/login">Sign In</a>`) in the header menu, triggering false positive detections on valid 190+ KB profile pages.
+* **Root Cause Analysis**: Early `isAuthWall` checks evaluated `html.includes('sign-in')` globally against the entire raw HTML payload. LinkedIn's Mobile SSR template renders unauthenticated navigation links (`<a href="/login">Sign In</a>`) in the header menu, triggering false positive detections on valid 190+ KB profile pages.
 * **Detailed Resolution**: Updated `isAuthWall` in `lib/scraper/fetcher.ts` to enforce payload size checks (`html.length < 15000`). AuthWall detection only evaluates on short error/login redirect pages (< 15 KB) or non-200 HTTP status codes, allowing full profile HTML (> 15 KB) to pass cleanly:
   ```typescript
   const isAuthWall =
@@ -337,17 +326,21 @@ Querying LinkedIn's private internal REST endpoints (such as `/voyager/api/ident
 
 ---
 
-#### 6. Avatar vs Cover Banner Image Cross-Pollination
-* **The Problem**: Target profile avatars were returning the logged-in account's header icon or falling back to the cover background banner image.
-* **Root Cause Analysis**: Authenticated LinkedIn pages render a `<link rel="preload">` in `<head>` for the logged-in user's navbar icon (`scale_100_100`). Additionally, cover background images (`profile-displaybackgroundimage`) appear higher in the DOM tree than profile photos (`profile-displayphoto`).
-* **Detailed Resolution**: Refactored image extraction in `lib/scraper/parser.ts` with strict URL pattern matching. Enforced that `avatar` MUST contain `profile-displayphoto` and explicitly exclude header nav icons (`.nav__user-avatar`), while `banner` MUST contain `profile-displaybackgroundimage`:
+#### 3. Logged-In User Navbar Photo Cross-Pollination
+* **The Problem**: Target profile avatars were returning the logged-in account's header icon instead of the target user's face picture.
+* **Root Cause Analysis**: Authenticated LinkedIn pages render a `<link rel="preload">` in `<head>` for the logged-in user's navbar icon (`scale_100_100`). Naive image tag queries (`$('img').first()`) matched the logged-in user's avatar.
+* **Detailed Resolution**: Refactored image extraction in `lib/scraper/parser.ts` with strict selector exclusions. Enforced that `avatar` MUST contain `profile-displayphoto` and explicitly exclude header nav icons (`.nav__user-avatar`, `header img`):
   ```typescript
-  // Avatar strictly requires 'profile-displayphoto' (face picture)
+  // Avatar strictly requires 'profile-displayphoto' (face picture) and excludes nav icons
   $('img[src*="profile-displayphoto"]').not('header img, .nav__user-avatar').first();
-
-  // Banner strictly requires 'profile-displaybackgroundimage' (cover background)
-  $('img[src*="profile-displaybackgroundimage"]').not('img[src*="profile-displayphoto"]').first();
   ```
+
+---
+
+#### 4. Graceful HTTP 999 AuthWall Diagnostics
+* **The Problem**: Unauthenticated requests to private profiles were failing abruptly without diagnostic feedback.
+* **Root Cause Analysis**: LinkedIn returns custom HTTP status code `999 Request Denied` for unauthenticated automated HTTP traffic.
+* **Detailed Resolution**: Added custom HTTP status code interceptors in `route.ts` and `fetcher.ts` that catch HTTP 999/403 codes, returning a structured JSON response with clear diagnostic messages pointing the user to configure session cookies via headers or `.env.local`.
 
 </details>
 
