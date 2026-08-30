@@ -50,6 +50,29 @@ const COMMON_SKILLS_DICTIONARY = [
   'Microservices', 'DevOps', 'CI/CD', 'Product Strategy', 'Agile', 'Leadership',
 ];
 
+/**
+ * Blacklist patterns for non-geographic DOM strings in LinkedIn SSR HTML
+ */
+const INVALID_LOCATION_PATTERNS = [
+  /^https?:\/\//i,
+  /\(company website\)/i,
+  /^\d+(st|nd|rd|th)(\s+degree)?$/i,
+  /^\d{4}\s*[-–—]\s*(\d{4}|present)$/i,
+  /joined\s+\d{4}/i,
+  /contact information updated/i,
+  /learn more about how members/i,
+  /verified info/i,
+  /\d+\s+(connections|followers|members)/i,
+  /^(contact info|see all|show all|about|experience|education|skills|licenses|certifications|profile|message|report)/i,
+  /\b(inc|llc|ltd|corp|corporation|gmbh|pvt|private|limited|technologies|solutions|services|systems|software)\b/i,
+  /\b(university|college|school|institute|academy)\b/i,
+];
+
+function isValidLocation(loc: string): boolean {
+  if (!loc || loc.length < 2 || loc.length > 100) return false;
+  return !INVALID_LOCATION_PATTERNS.some((pattern) => pattern.test(loc));
+}
+
 export function parseProfileHtml(
   html: string,
   url: string,
@@ -269,22 +292,7 @@ export function parseProfileHtml(
     }
   }
 
-  // Helper to validate geographic location candidates
-  const isValidLocation = (loc: string): boolean => {
-    if (!loc || loc.length < 2 || loc.length > 100) return false;
-    if (/^https?:\/\//i.test(loc) || /\(company website\)/i.test(loc)) return false;
-    if (/^\d+(st|nd|rd|th)(\s+degree)?$/i.test(loc)) return false;
-    if (/^\d{4}\s*[-–—]\s*(\d{4}|present)$/i.test(loc)) return false;
-    if (/joined\s+\d{4}/i.test(loc)) return false;
-    if (/contact information updated/i.test(loc)) return false;
-    if (/learn more about how members/i.test(loc)) return false;
-    if (/verified info/i.test(loc)) return false;
-    if (/\d+\s+(connections|followers|members)/i.test(loc)) return false;
-    if (/^(contact info|see all|show all|about|experience|education|skills|licenses|certifications|profile|message|report)/i.test(loc)) return false;
-    if (/\b(inc|llc|ltd|corp|corporation|gmbh|pvt|private|limited|technologies|solutions|services|systems|software)\b/i.test(loc)) return false;
-    if (/\b(university|college|school|institute|academy)\b/i.test(loc)) return false;
-    return true;
-  };
+
 
   // 8. Extract Location Dynamically from Mobile DOM & HTML Payload
   $('.bg-color-background-container .body-small.text-color-text-low-emphasis, .basic-profile-section .body-small.text-color-text-low-emphasis, .top-card-layout__first-subline span, .top-card__subline-item, address, [data-section="location"]').each((_, el) => {
