@@ -269,19 +269,42 @@ export function parseProfileHtml(
     }
   }
 
-  // 8. Extract Location Dynamically from Mobile DOM & HTML Payload
-  const mobileLocCandidate = $('.basic-profile-section .body-small.text-color-text-low-emphasis').first().text().replace(/\s+/g, ' ').replace(/\d+\s+connections.*$/i, '').trim();
-  if (mobileLocCandidate && mobileLocCandidate !== 'India' && mobileLocCandidate.length > 2) {
-    location = mobileLocCandidate;
-  }
+  // Helper to validate geographic location candidates
+  const isValidLocation = (loc: string): boolean => {
+    if (!loc || loc.length < 2 || loc.length > 100) return false;
+    if (/^https?:\/\//i.test(loc) || /\(company website\)/i.test(loc)) return false;
+    if (/^\d+(st|nd|rd|th)(\s+degree)?$/i.test(loc)) return false;
+    if (/^\d{4}\s*[-–—]\s*(\d{4}|present)$/i.test(loc)) return false;
+    if (/joined\s+\d{4}/i.test(loc)) return false;
+    if (/contact information updated/i.test(loc)) return false;
+    if (/learn more about how members/i.test(loc)) return false;
+    if (/verified info/i.test(loc)) return false;
+    if (/\d+\s+(connections|followers|members)/i.test(loc)) return false;
+    if (/^(contact info|see all|show all|about|experience|education|skills|licenses|certifications|profile|message|report)/i.test(loc)) return false;
+    if (/\b(inc|llc|ltd|corp|corporation|gmbh|pvt|private|limited|technologies|solutions|services|systems|software)\b/i.test(loc)) return false;
+    if (/\b(university|college|school|institute|academy)\b/i.test(loc)) return false;
+    return true;
+  };
 
-  if (!location) {
+  // 8. Extract Location Dynamically from Mobile DOM & HTML Payload
+  $('.bg-color-background-container .body-small.text-color-text-low-emphasis, .basic-profile-section .body-small.text-color-text-low-emphasis, .top-card-layout__first-subline span, .top-card__subline-item, address, [data-section="location"]').each((_, el) => {
+    if (location && isValidLocation(location)) return;
+    const $clone = $(el).clone();
+    $clone.find('.whitespace-nowrap, .dot-separator, .member-current-company, span[dir="ltr"]').remove();
+    const candidate = $clone.text().replace(/\s+/g, ' ').trim();
+    if (isValidLocation(candidate)) {
+      location = candidate;
+    }
+  });
+
+  if (!location || !isValidLocation(location)) {
     const locMatch =
+      mainContentText.match(/"addressLocality":\s*"([^"]+)"/) ||
       mainContentText.match(/"locality":\s*"([^"]+)"/) ||
       mainContentText.match(/"location":\s*"([^"]+)"/) ||
-      mainContentText.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*(?:United States|India|United Kingdom|Canada|Germany|Remote))/);
+      mainContentText.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*(?:United States|India|United Kingdom|Canada|Germany|California|Washington|New York|Texas|England|Remote))/);
 
-    if (locMatch) {
+    if (locMatch && isValidLocation(locMatch[1])) {
       location = cleanHtmlEntities(locMatch[1]);
     }
   }
@@ -428,6 +451,82 @@ export function parseProfileHtml(
 
   if (education.length > 0) {
     strategiesUsed.push('Mobile SSR Education DOM Parser');
+  }
+
+  // 12. Extract Certifications / Licenses Dynamically from Mobile SSR & Desktop DOM
+  $(
+    '.certifications-section li, .certifications-section .sub-list-item, .certifications-container ol > li, .license-certificate-container li, .certifications-item, #certifications + div ul > li, .pv-profile-section--certifications li, [data-section="certifications"] li, [data-section="licensesAndCertifications"] li'
+  ).each((idx, el) => {
+    const certTitle = $(el)
+      .find('.list-item-heading, .certifications-item__title, h3, .t-bold')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    const issuer = $(el)
+      .find('.list-item-detail .description, .list-item-detail, .certifications-item__subtitle, .t-normal, .body-small')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    const dateSpans = $(el).find('.body-small.text-color-text-low-emphasis span.body-small, .certifications-item__duration, .date-range');
+    let issueDate = '';
+    if (dateSpans.length > 0) {
+      const datesArr: string[] = [];
+      dateSpans.each((_, dEl) => {
+        const txt = $(dEl).text().replace(/[\n\r\s]+/g, ' ').trim();
+        if (txt) datesArr.push(txt);
+      });
+      issueDate = datesArr.join(' ');
+    }
+
+    const credentialId = $(el).find('.credential-id, .body-small:contains("Credential")').text().trim();
+
+    if (certTitle && certTitle.length > 1 && !certifications.some((c) => c.name.toLowerCase() === cleanHtmlEntities(certTitle).toLowerCase())) {
+      certifications.push({
+        id: `cert-dom-${idx}`,
+        name: cleanHtmlEntities(certTitle),
+        issuer: cleanHtmlEntities(issuer || 'Issuing Organization'),
+        issueDate: cleanHtmlEntities(issueDate || 'N/A'),
+        credentialId: credentialId ? cleanHtmlEntities(credentialId) : undefined,
+      });
+    }
+  });
+
+  if (certifications.length > 0) {
+    strategiesUsed.push('Mobile SSR Certifications DOM Parser');
+  }
+
+  // 13. Extract Languages Dynamically from Mobile SSR & Desktop DOM
+  $(
+    '.languages-section li, .languages-section .sub-list-item, .languages-container ol > li, .language-item, #languages + div ul > li, .pv-profile-section--languages li, [data-section="languages"] li'
+  ).each((_, el) => {
+    const langName = $(el)
+      .find('.list-item-heading, .language-name, h3, .t-bold')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    const proficiency = $(el)
+      .find('.body-small.text-color-text span[dir="ltr"], .body-small.text-color-text-low-emphasis span[dir="ltr"], .language-proficiency, .t-normal')
+      .first()
+      .text()
+      .replace(/…more|see less/gi, '')
+      .trim();
+
+    if (langName && langName.length > 1) {
+      const formatted = proficiency && proficiency !== langName ? `${cleanHtmlEntities(langName)} (${cleanHtmlEntities(proficiency)})` : cleanHtmlEntities(langName);
+      if (!languages.includes(formatted)) {
+        languages.push(formatted);
+      }
+    }
+  });
+
+  if (languages.length > 0) {
+    strategiesUsed.push('Mobile SSR Languages DOM Parser');
   }
 
   name = cleanHtmlEntities(name);
