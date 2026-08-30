@@ -7,7 +7,7 @@ A production-ready Next.js 15 application built with TypeScript and Tailwind CSS
 ## 📍 Table of Contents
 - [🚀 1. Setup Instructions](#-1-setup-instructions)
 - [📖 2. API Documentation](#-2-api-documentation)
-- [🔬 3. Our Approach](#-3-our-approach)
+- [🔬 3. My Approach](#-3-my-approach)
 - [⚠️ 4. Challenges I Faced & How I Resolved Them (In Detail)](#%EF%B8%8F-4-challenges-i-faced--how-i-resolved-them-in-detail)
 - [🏗 5. Architecture & File Tree](#-5-architecture--file-tree)
 
@@ -191,10 +191,10 @@ curl --location 'http://localhost:3000/api/scrape' \
 
 ---
 
-## 🔬 3. Our Approach
+## 🔬 3. My Approach
 
 ### 1. Architectural Design & Pipeline Overview
-Our scraping pipeline is architected around a **direct, lightweight server-to-server data ingestion model** built on Next.js 15 App Router server endpoints. The pipeline executes in five distinct phases:
+My scraping pipeline is architected around a **direct, lightweight server-to-server data ingestion model** built on Next.js 15 App Router server endpoints. The pipeline executes in five distinct phases:
 
 ```text
 [Client / Postman / Dashboard] 
@@ -247,7 +247,7 @@ Traditional web scrapers rely on headless browser automation tools like Puppetee
 * **Latency Overhead**: Launching browser instances and waiting for full JS hydration adds 4–8 seconds of latency per request.
 * **Serverless Incompatibility**: Large Chromium binaries exceed deployment bundle limits on serverless platforms (Vercel, AWS Lambda Edge).
 
-**Our Strategy**: We bypass headless browsers entirely by executing server-side HTTP `fetch()` requests directly from Next.js server endpoints. By pairing native HTTP requests with full browser header mimicry (`User-Agent`, `Sec-Fetch-Dest: document`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Site: none`, `Accept-Language: en-US,en;q=0.9`), our engine achieves:
+**My Strategy**: I bypass headless browsers entirely by executing server-side HTTP `fetch()` requests directly from Next.js server endpoints. By pairing native HTTP requests with full browser header mimicry (`User-Agent`, `Sec-Fetch-Dest: document`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Site: none`, `Accept-Language: en-US,en;q=0.9`), my engine achieves:
 * **~300ms–600ms latency** per profile fetch.
 * **Near-zero memory footprint** (under 15MB RAM).
 * **100% serverless compatibility** across Vercel and Node environments.
@@ -257,7 +257,7 @@ Traditional web scrapers rely on headless browser automation tools like Puppetee
 ### 3. Mobile Web SSR Engine (`m_flagship3_profile_view_base`)
 Desktop LinkedIn profile pages render as a Client-Side Single Page Application (SPA). When requested via a standard desktop User-Agent, LinkedIn returns minimal shell HTML where heavy content sections (Education, Experience, Certifications) below the fold are left as empty lazy-load container anchors (`<div id="profile-top-card-education-lazy-load">`), expecting client JS to populate them.
 
-**Our Discovery**: When a request originates from a Mobile Web browser, LinkedIn's server infrastructure routes the request to its Mobile Web Server-Side Renderer (`m_flagship3_profile_view_base`). 
+**My Discovery**: When a request originates from a Mobile Web browser, LinkedIn's server infrastructure routes the request to its Mobile Web Server-Side Renderer (`m_flagship3_profile_view_base`). 
 * The Mobile SSR template renders **100% complete static HTML** directly on the server.
 * `.education-container` and `.experience-container` DOM nodes are pre-populated with full text, dates, degree names, and organization headers in the initial response payload—requiring zero client-side JavaScript execution!
 
@@ -266,8 +266,8 @@ Desktop LinkedIn profile pages render as a Client-Side Single Page Application (
 ### 4. Hierarchical Multi-Role DOM Parser Architecture
 LinkedIn profiles frequently feature users who have held multiple sequential roles (promotions or lateral moves) within the same organization (e.g. *SDE I ➔ SDE II ➔ Senior SDE at Microsoft*). Flat DOM queries (`$('.experience-item h3')`) fail on these structures, extracting only the top-most position while discarding historical career trajectory.
 
-**Our Parser Strategy**:
-1. We inspect every top-level experience container (`ul li.experience-item`).
+**My Parser Strategy**:
+1. I inspect every top-level experience container (`ul li.experience-item`).
 2. The parser evaluates whether the block contains a **single-role layout** or a **multi-role promotional timeline** (`ul li.role-container`).
 3. For multi-role timelines, the parser extracts the parent organization name once, then recursively iterates over child `role-container` nodes to extract every individual position title, date range, location, and description.
 
@@ -276,7 +276,7 @@ LinkedIn profiles frequently feature users who have held multiple sequential rol
 ### 5. Multi-Layer Pattern-Matched Asset Extraction
 LinkedIn profile HTML contains dozens of `<img>` tags and `<link rel="preload">` elements, including the logged-in user's navbar icon, company logos, and background cover banners. Extracting profile photos blindly via generic `$('img').first()` leads to avatar/banner cross-pollination.
 
-**Our Pattern-Matching Rules**:
+**My Pattern-Matching Rules**:
 * **Avatar Image**: Target URLs must explicitly match the profile display photo CDN path (`src*="profile-displayphoto"`) while excluding navigation bar elements (`.nav__user-avatar`, `header img`).
 * **Banner Image**: Target URLs must explicitly match background cover image CDN patterns (`src*="profile-displaybackgroundimage"`).
 
@@ -285,7 +285,7 @@ LinkedIn profile HTML contains dozens of `<img>` tags and `<link rel="preload">`
 ### 6. Zero Session Revocations & Account Safety
 Querying LinkedIn's private internal REST endpoints (such as `/voyager/api/identity/profiles/...`) triggers strict Web Application Firewall (WAF) checks that analyze TLS fingerprints and header ordering. When invalid signatures are detected, LinkedIn immediately issues `Set-Cookie: liap=delete me`, invalidating the user's `li_at` session cookie and logging them out of their browser.
 
-**Our Guarantee**: Our scraper strictly performs standard HTTP GET requests to public page routes (`https://www.linkedin.com/in/username`). It never calls private Voyager endpoints. This guarantees **zero session revocations**, keeping your active browser session logged in safely.
+**My Guarantee**: My scraper strictly performs standard HTTP GET requests to public page routes (`https://www.linkedin.com/in/username`). It never calls private Voyager endpoints. This guarantees **zero session revocations**, keeping your active browser session logged in safely.
 
 ---
 
